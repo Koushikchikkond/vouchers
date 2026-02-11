@@ -6,12 +6,10 @@ import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-export default function LandingScreen({ onStart, onNodeDetails }) {
+export default function LandingScreen({ onStart, onNodeDetails, onModeSelect, onBackFromNodeSelection, showNodeSelection, currentMode }) {
     const { user, logout } = useAuth();
-    const [mode, setMode] = useState(null); // 'VOUCHER' or 'REQUESTED'
     const [nodes, setNodes] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [showNodeSelection, setShowNodeSelection] = useState(false);
     const [newNode, setNewNode] = useState('');
     const [editingNode, setEditingNode] = useState(null);
 
@@ -36,13 +34,8 @@ export default function LandingScreen({ onStart, onNodeDetails }) {
             });
     };
 
-    const handleModeSelect = (selectedMode) => {
-        setMode(selectedMode);
-        setShowNodeSelection(true);
-    };
-
     const handleNodeSelect = (node) => {
-        onStart(mode, node);
+        onStart(currentMode, node);
     };
 
     const handleCreateNode = () => {
@@ -192,7 +185,7 @@ export default function LandingScreen({ onStart, onNodeDetails }) {
                         <motion.button
                             whileHover={{ scale: 1.03 }}
                             whileTap={{ scale: 0.97 }}
-                            onClick={() => handleModeSelect('VOUCHER')}
+                            onClick={() => onModeSelect('VOUCHER')}
                             className="group relative w-full py-8 rounded-3xl bg-gray-800/50 border border-gray-700 hover:border-emerald-500/50 transition-all backdrop-blur-xl overflow-hidden"
                         >
                             <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -205,7 +198,7 @@ export default function LandingScreen({ onStart, onNodeDetails }) {
                         <motion.button
                             whileHover={{ scale: 1.03 }}
                             whileTap={{ scale: 0.97 }}
-                            onClick={() => handleModeSelect('REQUESTED')}
+                            onClick={() => onModeSelect('REQUESTED')}
                             className="group relative w-full py-8 rounded-3xl bg-gray-800/50 border border-gray-700 hover:border-blue-500/50 transition-all backdrop-blur-xl overflow-hidden"
                         >
                             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -225,7 +218,7 @@ export default function LandingScreen({ onStart, onNodeDetails }) {
             <div className="p-6 pt-8 max-w-lg mx-auto w-full">
                 {/* Header with User Info */}
                 <div className="flex justify-between items-center mb-8">
-                    <button onClick={() => setShowNodeSelection(false)} className="text-gray-500 flex items-center gap-2 hover:text-black transition-colors">
+                    <button onClick={onBackFromNodeSelection} className="text-gray-500 flex items-center gap-2 hover:text-black transition-colors">
                         <ArrowLeft size={20} /> Back
                     </button>
                     <div className="flex items-center gap-3">

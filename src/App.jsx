@@ -10,6 +10,7 @@ function AppContent() {
   const [currentNode, setCurrentNode] = useState(null);
   const [currentMode, setCurrentMode] = useState(null); // 'VOUCHER' | 'REQUESTED'
   const [viewMode, setViewMode] = useState(null); // 'transaction' | 'details'
+  const [showNodeSelection, setShowNodeSelection] = useState(false);
 
   const handleStart = (mode, node) => {
     setCurrentNode(node);
@@ -22,10 +23,22 @@ function AppContent() {
     setViewMode('details');
   };
 
-  const handleBack = () => {
-    setCurrentNode(null);
+  const handleBackFromNodeSelection = () => {
+    // Go back to mode selection (main page)
+    setShowNodeSelection(false);
     setCurrentMode(null);
+  };
+
+  const handleBackFromTransaction = () => {
+    // Go back to node selection page
+    setCurrentNode(null);
     setViewMode(null);
+    // Keep currentMode and showNodeSelection true
+  };
+
+  const handleModeSelect = (mode) => {
+    setCurrentMode(mode);
+    setShowNodeSelection(true);
   };
 
   // Show loading while checking authentication
@@ -44,7 +57,7 @@ function AppContent() {
 
   // Show node details view
   if (viewMode === 'details' && currentNode) {
-    return <NodeDetailsView node={currentNode} onBack={handleBack} />;
+    return <NodeDetailsView node={currentNode} onBack={handleBackFromTransaction} />;
   }
 
   // Show transaction screen
@@ -53,7 +66,7 @@ function AppContent() {
       <TransactionScreen
         node={currentNode}
         mode={currentMode}
-        onBack={handleBack}
+        onBack={handleBackFromTransaction}
       />
     );
   }
@@ -63,6 +76,10 @@ function AppContent() {
     <LandingScreen
       onStart={handleStart}
       onNodeDetails={handleNodeDetails}
+      onModeSelect={handleModeSelect}
+      onBackFromNodeSelection={handleBackFromNodeSelection}
+      showNodeSelection={showNodeSelection}
+      currentMode={currentMode}
     />
   );
 }
