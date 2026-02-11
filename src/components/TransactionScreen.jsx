@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Upload, Check, Loader2, Utensils, Plane, ShoppingBag, LogOut, FileText, Download, Calendar, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const CATEGORIES = [
     { id: 'TRAVEL', label: 'Travel', icon: Plane, color: 'bg-blue-100 text-blue-600' },
@@ -12,6 +15,7 @@ const CATEGORIES = [
 ];
 
 export default function TransactionScreen({ node, mode, onBack }) {
+    const { user } = useAuth();
     const [type, setType] = useState('IN'); // Default to IN as per Category visibility flow often used first
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -76,6 +80,7 @@ export default function TransactionScreen({ node, mode, onBack }) {
         setSubmitting(true);
         try {
             await api.saveTransaction({
+                user: user.username,
                 node,
                 type,
                 amount: Number(amount),
@@ -106,8 +111,8 @@ export default function TransactionScreen({ node, mode, onBack }) {
         }
         setLoadingHistory(true);
         try {
-            const data = await api.getHistory(node, historyDates.start, historyDates.end);
-            setHistoryData(data);
+            const data = await api.getHistory(user.username, node, historyDates.start, historyDates.end);
+            setHistoryData(data.transactions);
         } catch (e) {
             alert("Failed to fetch history");
         } finally {
@@ -115,23 +120,85 @@ export default function TransactionScreen({ node, mode, onBack }) {
         }
     };
 
-    const downloadCSV = () => {
+    const downloadPDF = () => {
         if (!historyData || historyData.length === 0) return;
 
-        const headers = ["Timestamp", "Node", "Type", "Amount", "Date", "Reason", "Category", "DataURL"];
-        const csvContent = [
-            headers.join(","),
-            ...historyData.map(row => [
-                row.timestamp, row.node, row.type, row.amount, row.date, `"${row.reason}"`, row.category, row.imageUrl
-            ].join(","))
-        ].join("\n");
+        const doc = new jsPDF();
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `History_${node}_${historyDates.start}_${historyDates.end}.csv`;
-        a.click();
+        // Add title
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Transaction History', 14, 20);
+
+        // Add node name and date range
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Node: ${node}`, 14, 28);
+        doc.text(`Period: ${historyDates.start} to ${historyDates.end}`, 14, 34);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 40);
+
+        // Calculate totals
+        const totalIn = historyData.filter(t => t.type === 'IN').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const totalOut = historyData.filter(t => t.type === 'OUT').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        const balance = totalIn - totalOut;
+
+        // Prepare table data
+        const tableData = historyData.map((row, idx) => [
+            idx + 1,
+            row.date,
+            row.type,
+            `₹${parseFloat(row.amount || 0).toFixed(2)}`,
+            row.reason,
+            row.category || '-'
+        ]);
+
+        // Add table
+        doc.autoTable({
+            startY: 46,
+            head: [['SL No', 'Date', 'Type', 'Amount', 'Reason', 'Category']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [41, 128, 185],
+                textColor: 255,
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            columnStyles: {
+                0: { halign: 'center', cellWidth: 15 },
+                1: { halign: 'center', cellWidth: 25 },
+                2: { halign: 'center', cellWidth: 20 },
+                3: { halign: 'right', cellWidth: 30 },
+                4: { halign: 'left', cellWidth: 60 },
+                5: { halign: 'center', cellWidth: 30 }
+            },
+            styles: {
+                fontSize: 9,
+                cellPadding: 3
+            },
+            alternateRowStyles: {
+                fillColor: [245, 245, 245]
+            }
+        });
+
+        // Add summary at the bottom
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Summary:', 14, finalY);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 150, 0);
+        doc.text(`Total In: ₹${totalIn.toFixed(2)}`, 14, finalY + 7);
+
+        doc.setTextColor(220, 53, 69);
+        doc.text(`Total Out: ₹${totalOut.toFixed(2)}`, 14, finalY + 14);
+
+        doc.setTextColor(0, 123, 255);
+        doc.text(`Balance: ₹${balance.toFixed(2)}`, 14, finalY + 21);
+
+        // Save PDF
+        doc.save(`History_${node}_${historyDates.start}_${historyDates.end}.pdf`);
     };
 
     const isAmountReadOnly = isRequestedMoney && type === 'IN' && category === 'FOOD';
@@ -163,8 +230,8 @@ export default function TransactionScreen({ node, mode, onBack }) {
                             key={t}
                             onClick={() => handleTypeChange(t)}
                             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${type === t
-                                    ? 'bg-white shadow-md text-black'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-white shadow-md text-black'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             {t}
@@ -176,7 +243,7 @@ export default function TransactionScreen({ node, mode, onBack }) {
                 <div>
                     <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">Amount</label>
                     <div className={`relative flex items-center bg-white rounded-2xl border-2 transition-colors overflow-hidden ${isAmountReadOnly ? 'bg-gray-100 border-gray-100' : 'border-transparent focus-within:border-black'}`}>
-                        <span className="pl-6 text-xl font-bold text-gray-400">$</span>
+                        <span className="pl-6 text-xl font-bold text-gray-400">₹</span>
                         <input
                             type="number"
                             value={amount}
@@ -225,8 +292,8 @@ export default function TransactionScreen({ node, mode, onBack }) {
                                     key={cat.id}
                                     onClick={() => handleCategorySelect(cat.id)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl transition-all border-2 ${category === cat.id
-                                            ? `border-current ${cat.color} bg-opacity-10`
-                                            : 'bg-white border-transparent text-gray-400 hover:bg-gray-50'
+                                        ? `border-current ${cat.color} bg-opacity-10`
+                                        : 'bg-white border-transparent text-gray-400 hover:bg-gray-50'
                                         }`}
                                 >
                                     <cat.icon size={24} className={`mb-2 ${category === cat.id ? 'opacity-100' : 'opacity-50'}`} />
@@ -321,8 +388,8 @@ export default function TransactionScreen({ node, mode, onBack }) {
                                 <div className="mt-6 border-t pt-6">
                                     <p className="text-center font-semibold mb-4">{historyData.length} records found</p>
                                     {historyData.length > 0 && (
-                                        <button onClick={downloadCSV} className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
-                                            <Download size={20} /> Download CSV
+                                        <button onClick={downloadPDF} className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                                            <Download size={20} /> Download PDF
                                         </button>
                                     )}
                                 </div>

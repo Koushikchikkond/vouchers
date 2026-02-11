@@ -1,31 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../api';
-import { Plus, ChevronRight, Loader2, ArrowLeft } from 'lucide-react';
+import { Plus, ChevronRight, Loader2, ArrowLeft, Edit2, Trash2, Download, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
-export default function LandingScreen({ onStart }) {
+export default function LandingScreen({ onStart, onNodeDetails }) {
+    const { user, logout } = useAuth();
     const [mode, setMode] = useState(null); // 'VOUCHER' or 'REQUESTED'
     const [nodes, setNodes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showNodeSelection, setShowNodeSelection] = useState(false);
     const [newNode, setNewNode] = useState('');
+    const [editingNode, setEditingNode] = useState(null);
 
     useEffect(() => {
         if (showNodeSelection) {
-            setLoading(true);
-            api.getNodes()
-                .then(n => {
-                    setNodes(n || []);
-                })
-                .catch(err => {
-                    console.error(err);
-                    setNodes([]);
-                })
-                .finally(() => {
-                    setLoading(false);
-                });
+            loadNodes();
         }
     }, [showNodeSelection]);
+
+    const loadNodes = () => {
+        setLoading(true);
+        api.getNodes(user.username)
+            .then(n => {
+                setNodes(n || []);
+            })
+            .catch(err => {
+                console.error(err);
+                setNodes([]);
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    };
 
     const handleModeSelect = (selectedMode) => {
         setMode(selectedMode);
@@ -39,6 +48,124 @@ export default function LandingScreen({ onStart }) {
     const handleCreateNode = () => {
         if (newNode.trim()) {
             handleNodeSelect(newNode.trim());
+        }
+    };
+
+    const handleDeleteNode = async (nodeName) => {
+        if (!confirm(`Are you sure you want to delete "${nodeName}" and all its transactions?`)) return;
+
+        try {
+            await api.deleteNode(user.username, nodeName);
+            alert('Node deleted successfully');
+            loadNodes();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to delete node');
+        }
+    };
+
+    const handleUpdateNode = async (oldName, newName) => {
+        if (!newName.trim()) return;
+
+        try {
+            await api.updateNode(user.username, oldName, newName.trim());
+            alert('Node renamed successfully');
+            setEditingNode(null);
+            loadNodes();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to rename node');
+        }
+    };
+
+    const handleExportAllNodes = async () => {
+        try {
+            const data = await api.getAllNodesExport(user.username);
+            if (!data.transactions || data.transactions.length === 0) {
+                alert('No transactions to export');
+                return;
+            }
+
+            const doc = new jsPDF();
+
+            // Add title
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('All Nodes - Transaction Report', 14, 20);
+
+            // Add metadata
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`User: ${user.name} (@${user.username})`, 14, 28);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
+
+            // Calculate totals
+            const totalIn = data.transactions.filter(t => t.type === 'IN').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+            const totalOut = data.transactions.filter(t => t.type === 'OUT').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+            const balance = totalIn - totalOut;
+
+            // Prepare table data
+            const tableData = data.transactions.map((row, idx) => [
+                idx + 1,
+                row.node,
+                row.date,
+                row.type,
+                `₹${parseFloat(row.amount || 0).toFixed(2)}`,
+                row.reason,
+                row.category || '-'
+            ]);
+
+            // Add table
+            doc.autoTable({
+                startY: 40,
+                head: [['SL', 'Node', 'Date', 'Type', 'Amount', 'Reason', 'Category']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [41, 128, 185],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 12 },
+                    1: { halign: 'left', cellWidth: 25 },
+                    2: { halign: 'center', cellWidth: 22 },
+                    3: { halign: 'center', cellWidth: 15 },
+                    4: { halign: 'right', cellWidth: 25 },
+                    5: { halign: 'left', cellWidth: 50 },
+                    6: { halign: 'center', cellWidth: 25 }
+                },
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 2
+                },
+                alternateRowStyles: {
+                    fillColor: [245, 245, 245]
+                }
+            });
+
+            // Add summary at the bottom
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Summary:', 14, finalY);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(0, 150, 0);
+            doc.text(`Total In: ₹${totalIn.toFixed(2)}`, 14, finalY + 7);
+
+            doc.setTextColor(220, 53, 69);
+            doc.text(`Total Out: ₹${totalOut.toFixed(2)}`, 14, finalY + 14);
+
+            doc.setTextColor(0, 123, 255);
+            doc.text(`Balance: ₹${balance.toFixed(2)}`, 14, finalY + 21);
+
+            // Save PDF
+            doc.save(`All_Nodes_Export_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to export data');
         }
     };
 
@@ -96,9 +223,25 @@ export default function LandingScreen({ onStart }) {
     return (
         <div className="flex flex-col min-h-screen bg-gray-50 text-gray-900">
             <div className="p-6 pt-8 max-w-lg mx-auto w-full">
-                <button onClick={() => setShowNodeSelection(false)} className="text-gray-500 mb-8 flex items-center gap-2 hover:text-black transition-colors">
-                    <ArrowLeft size={20} /> Back
-                </button>
+                {/* Header with User Info */}
+                <div className="flex justify-between items-center mb-8">
+                    <button onClick={() => setShowNodeSelection(false)} className="text-gray-500 flex items-center gap-2 hover:text-black transition-colors">
+                        <ArrowLeft size={20} /> Back
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-800">{user.name}</p>
+                            <p className="text-xs text-gray-500">@{user.username}</p>
+                        </div>
+                        <button
+                            onClick={logout}
+                            className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                            title="Logout"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    </div>
+                </div>
 
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -125,23 +268,85 @@ export default function LandingScreen({ onStart }) {
                     </div>
 
                     <div>
-                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">Recent Nodes</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Your Nodes</h3>
+                            {nodes.length > 0 && (
+                                <button
+                                    onClick={handleExportAllNodes}
+                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors"
+                                >
+                                    <Download size={16} />
+                                    Export All
+                                </button>
+                            )}
+                        </div>
                         {loading ? (
                             <div className="flex justify-center p-12"><Loader2 className="animate-spin text-gray-400 w-8 h-8" /></div>
                         ) : (
                             <div className="space-y-3">
                                 {nodes.map((node, idx) => (
-                                    <motion.div
-                                        key={idx}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => handleNodeSelect(node)}
-                                        className="p-5 bg-white rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:shadow-md transition-all hover:border-gray-300"
-                                    >
-                                        <span className="font-semibold text-lg text-gray-800">{node}</span>
-                                        <ChevronRight className="text-gray-300" />
-                                    </motion.div>
+                                    editingNode === node ? (
+                                        <div key={idx} className="p-5 bg-white rounded-2xl shadow-sm border-2 border-blue-500">
+                                            <input
+                                                type="text"
+                                                defaultValue={node}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        handleUpdateNode(node, e.target.value);
+                                                    } else if (e.key === 'Escape') {
+                                                        setEditingNode(null);
+                                                    }
+                                                }}
+                                                onBlur={(e) => handleUpdateNode(node, e.target.value)}
+                                                autoFocus
+                                                className="w-full font-semibold text-lg text-gray-800 outline-none bg-gray-50 px-3 py-2 rounded-lg"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <motion.div
+                                            key={idx}
+                                            whileTap={{ scale: 0.98 }}
+                                            className="p-5 bg-white rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition-all hover:border-gray-300"
+                                        >
+                                            <span
+                                                onClick={() => onNodeDetails ? onNodeDetails(node) : handleNodeSelect(node)}
+                                                className="font-semibold text-lg text-gray-800 cursor-pointer flex-1"
+                                            >
+                                                {node}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingNode(node);
+                                                    }}
+                                                    className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                                                    title="Rename node"
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteNode(node);
+                                                    }}
+                                                    className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                                                    title="Delete node"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleNodeSelect(node)}
+                                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                    title="Add transaction"
+                                                >
+                                                    <ChevronRight className="text-gray-300" />
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )
                                 ))}
-                                {nodes.length === 0 && <div className="text-center py-12 text-gray-400 bg-gray-100/50 rounded-2xl border border-dashed border-gray-200">No recent nodes found.</div>}
+                                {nodes.length === 0 && <div className="text-center py-12 text-gray-400 bg-gray-100/50 rounded-2xl border border-dashed border-gray-200">No nodes found. Create one above!</div>}
                             </div>
                         )}
                     </div>

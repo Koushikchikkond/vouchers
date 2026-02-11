@@ -1,232 +1,206 @@
-# 🚀 Vercel Deployment Guide
+# Deployment Guide - Updating Live Server
 
-This guide will help you deploy your Vouchers application to Vercel for free.
+## Overview
+This guide will help you deploy the updated voucher application with the new PDF export functionality and Indian Rupee (₹) currency symbol to your live server.
 
-## Prerequisites
+## What Changed
+1. **Currency**: All $ symbols replaced with ₹
+2. **Export Format**: CSV exports replaced with professional PDF exports with tables
+3. **New Dependencies**: Added `jspdf` and `jspdf-autotable`
 
-- A GitHub account (recommended) or Vercel account
-- Your project code
-- Your Google Apps Script backend URL
+---
 
-## Method 1: Deploy via Vercel CLI (Fastest)
+## Deployment Steps
 
-### Step 1: Install Vercel CLI
+### Step 1: Build the Production Bundle
 
-```bash
-npm install -g vercel
-```
-
-### Step 2: Build Your Project (Test First)
+Run the following command in your project directory:
 
 ```bash
 npm run build
 ```
 
-This creates a `dist` folder with your production-ready files.
+This will create an optimized production build in the `dist/` folder.
 
-### Step 3: Deploy to Vercel
-
-```bash
-vercel
-```
-
-Follow the prompts:
-- **Set up and deploy?** → Yes
-- **Which scope?** → Your account
-- **Link to existing project?** → No
-- **Project name?** → vouchers (or your preferred name)
-- **Directory?** → ./ (press Enter)
-- **Override settings?** → No
-
-### Step 4: Add Environment Variables
-
-After deployment, add your environment variable:
-
-```bash
-vercel env add VITE_API_URL
-```
-
-When prompted, paste your Google Apps Script URL:
-```
-https://script.google.com/macros/s/AKfycbxCXh8qxtRzu6G3xUsIISVYhfmeo6WpaFXpHNvNKr6SkluCWfwGRNDabKR5DalFdxZYhA/exec
-```
-
-Select: **Production, Preview, and Development**
-
-### Step 5: Redeploy with Environment Variables
-
-```bash
-vercel --prod
-```
-
-Your app is now live! 🎉
+**Expected Output:**
+- A `dist/` folder containing all compiled files
+- Minified JavaScript and CSS files
+- Optimized assets
 
 ---
 
-## Method 2: Deploy via Vercel Dashboard (Easiest)
+### Step 2: Deploy Frontend
 
-### Step 1: Push to GitHub
+Depending on your hosting platform, follow the appropriate method:
 
-1. Create a new repository on GitHub
-2. Initialize git in your project:
+#### Option A: Netlify / Vercel / Similar Platforms
 
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/vouchers.git
-git push -u origin main
-```
+1. **If using Git integration:**
+   ```bash
+   git add .
+   git commit -m "Updated to PDF export and Indian Rupee currency"
+   git push origin main
+   ```
+   - Your platform will automatically detect changes and rebuild
 
-### Step 2: Import to Vercel
+2. **If using manual deployment:**
+   - Upload the entire `dist/` folder to your hosting platform
+   - Or use their CLI tools:
+   
+   **Netlify:**
+   ```bash
+   npm install -g netlify-cli
+   netlify deploy --prod --dir=dist
+   ```
+   
+   **Vercel:**
+   ```bash
+   npm install -g vercel
+   vercel --prod
+   ```
 
-1. Go to [vercel.com](https://vercel.com)
-2. Sign up/Login with GitHub
-3. Click **"Add New Project"**
-4. Import your `vouchers` repository
-5. Vercel will auto-detect Vite settings
+#### Option B: Traditional Web Hosting (cPanel, FTP, etc.)
 
-### Step 3: Configure Environment Variables
+1. Build the project:
+   ```bash
+   npm run build
+   ```
 
-Before deploying, add environment variables:
+2. Upload the contents of the `dist/` folder to your web server:
+   - Using FTP client (FileZilla, WinSCP, etc.)
+   - Or using cPanel File Manager
+   - Upload to your public_html or www directory
 
-1. In the import screen, expand **"Environment Variables"**
-2. Add:
-   - **Name:** `VITE_API_URL`
-   - **Value:** `https://script.google.com/macros/s/AKfycbxCXh8qxtRzu6G3xUsIISVYhfmeo6WpaFXpHNvNKr6SkluCWfwGRNDabKR5DalFdxZYhA/exec`
-   - **Environment:** Production, Preview, Development
-
-### Step 4: Deploy
-
-Click **"Deploy"** and wait 1-2 minutes.
-
-Your app is now live! 🎉
+3. Ensure `.env` file is configured with your API URL
 
 ---
 
-## Post-Deployment Steps
+### Step 3: Backend (Google Apps Script) - No Changes Needed
 
-### 1. Update Google Apps Script CORS (Important!)
+**Good News:** The backend doesn't need any updates for these changes!
 
-Your backend needs to allow requests from your Vercel domain.
+The PDF generation happens entirely in the frontend (browser), so your Google Apps Script backend remains unchanged.
+
+However, if you want to verify your backend is working:
 
 1. Open your Google Apps Script project
-2. Find the `doPost` or `doGet` function
-3. Update the CORS headers to include your Vercel URL:
-
-```javascript
-function doPost(e) {
-  const output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-  
-  // Add your Vercel domain here
-  output.setHeader('Access-Control-Allow-Origin', 'https://your-app.vercel.app');
-  output.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
-  // ... rest of your code
-}
-```
-
-Or allow all origins (less secure but easier):
-```javascript
-output.setHeader('Access-Control-Allow-Origin', '*');
-```
-
-2. **Deploy** your Google Apps Script again
-
-### 2. Test Your Deployment
-
-Visit your Vercel URL and test:
-- ✅ Voucher submission
-- ✅ Requested money submission
-- ✅ Transaction history
-- ✅ Export functionality
-- ✅ Image uploads
-
-### 3. Custom Domain (Optional)
-
-1. Go to your Vercel project settings
-2. Navigate to **"Domains"**
-3. Add your custom domain
-4. Update DNS records as instructed
+2. Ensure the deployment URL in your `.env` file matches:
+   ```
+   VITE_API_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+   ```
 
 ---
 
-## Useful Vercel Commands
+### Step 4: Verify Environment Variables
 
+Make sure your `.env` file (or environment variables on your hosting platform) contains:
+
+```env
+VITE_API_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+```
+
+**For different hosting platforms:**
+
+- **Netlify**: Set in Site settings → Environment variables
+- **Vercel**: Set in Project Settings → Environment Variables
+- **Traditional hosting**: Upload `.env` file to root directory
+
+---
+
+### Step 5: Test the Deployment
+
+After deployment, test the following:
+
+1. **Login**: Use credentials `koushik` / `Koushik@8861`
+2. **Currency Symbol**: Verify ₹ appears in amount fields
+3. **Create Transaction**: Add a test transaction
+4. **Export PDF**: 
+   - Go to Node Details → Export Transactions
+   - Select date range and download
+   - Verify PDF has table format with ₹ symbols
+5. **Export All Nodes**: Test the "Export All" button on landing screen
+
+---
+
+## Quick Deployment Commands
+
+### For Git-based Deployment:
 ```bash
-# Deploy to production
-vercel --prod
+# Build the project
+npm run build
 
-# Deploy to preview
-vercel
+# Commit and push changes
+git add .
+git commit -m "Updated to PDF export and Rupee currency"
+git push origin main
+```
 
-# View deployment logs
-vercel logs
+### For Manual Deployment:
+```bash
+# Build the project
+npm run build
 
-# List all deployments
-vercel ls
-
-# Remove a deployment
-vercel rm [deployment-url]
-
-# Open project in browser
-vercel open
+# The dist/ folder is now ready to upload to your server
+# Upload contents of dist/ folder to your web hosting
 ```
 
 ---
 
 ## Troubleshooting
 
-### Build Fails
-- Check `npm run build` works locally first
-- Ensure all dependencies are in `package.json` (not just devDependencies)
+### Issue: PDF not generating
+**Solution**: Clear browser cache and hard reload (Ctrl+Shift+R)
 
-### Environment Variables Not Working
-- Make sure variable names start with `VITE_`
-- Redeploy after adding environment variables
-- Check Vercel dashboard → Settings → Environment Variables
+### Issue: Still seeing $ instead of ₹
+**Solution**: 
+1. Clear browser cache
+2. Verify you're accessing the new deployment URL
+3. Check browser console for errors
 
-### CORS Errors
-- Update Google Apps Script CORS headers
-- Redeploy your Google Apps Script
-- Clear browser cache
+### Issue: Build fails
+**Solution**: 
+1. Delete `node_modules` folder
+2. Run `npm install`
+3. Run `npm run build` again
 
-### 404 Errors on Refresh
-- The `vercel.json` file handles this with rewrites
-- Make sure `vercel.json` is committed to your repo
-
----
-
-## Your Deployment URLs
-
-After deployment, you'll get:
-- **Production URL:** `https://vouchers.vercel.app` (or custom name)
-- **Preview URLs:** Automatic for each git push
-- **Deployment Dashboard:** `https://vercel.com/your-username/vouchers`
+### Issue: Environment variables not working
+**Solution**:
+- For Netlify/Vercel: Set variables in dashboard
+- For traditional hosting: Ensure `.env` file is in root directory
+- Rebuild after changing environment variables
 
 ---
 
-## Free Tier Limits
+## Rollback Plan
 
-Vercel's free tier includes:
-- ✅ Unlimited personal projects
-- ✅ 100GB bandwidth/month
-- ✅ Automatic HTTPS
-- ✅ Global CDN
-- ✅ Automatic deployments from Git
-- ✅ Preview deployments for PRs
+If you need to rollback to the previous version:
 
-This is more than enough for your voucher application!
+1. **Git-based deployment:**
+   ```bash
+   git revert HEAD
+   git push origin main
+   ```
+
+2. **Manual deployment:**
+   - Keep a backup of your previous `dist/` folder
+   - Re-upload the backup if needed
 
 ---
 
-## Need Help?
+## Support Files Created
 
-- Vercel Documentation: https://vercel.com/docs
-- Vite Deployment Guide: https://vitejs.dev/guide/static-deploy.html
-- Vercel Support: https://vercel.com/support
+- `AUTHENTICATION_UPDATE.md` - Details about hardcoded login
+- `EXPORT_AND_CURRENCY_UPDATE.md` - Details about PDF export and currency changes
+- This file: `DEPLOYMENT_GUIDE.md` - Deployment instructions
 
-Happy deploying! 🚀
+---
+
+## Summary
+
+✅ **Frontend Changes**: PDF export + ₹ currency symbol  
+✅ **Backend Changes**: None required  
+✅ **New Dependencies**: jspdf, jspdf-autotable (already installed)  
+✅ **Build Command**: `npm run build`  
+✅ **Deploy**: Upload `dist/` folder or push to Git  
+
+Your application is ready to deploy! 🚀
