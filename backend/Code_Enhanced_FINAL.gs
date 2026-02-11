@@ -376,12 +376,15 @@ function deleteNode(data) {
   const sheetData = sheet.getDataRange().getValues();
   let rowsToDelete = [];
   
+  // Collect row numbers to delete (from bottom to top)
   for (let i = sheetData.length - 1; i >= 1; i--) {
     if (sheetData[i][2] === data.user && sheetData[i][3] === data.node) {
-      rowsToDelete.push(i + 1);
+      rowsToDelete.push(i + 1); // Store 1-indexed row number
     }
   }
   
+  // Delete rows from bottom to top to avoid index shifting
+  // rowsToDelete is already in reverse order (bottom to top)
   rowsToDelete.forEach(rowNum => {
     sheet.deleteRow(rowNum);
   });
